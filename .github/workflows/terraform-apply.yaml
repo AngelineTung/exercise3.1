@@ -1,4 +1,4 @@
-name: Terraform Destroy (manual, no plan)
+name: Terraform Destroy (manual, auto-detect)
 
 on:
   workflow_dispatch:
@@ -15,14 +15,35 @@ jobs:
   destroy:
     if: ${{ github.event.inputs.confirm == 'DESTROY' }}
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: infra   # <- set to the folder with .tf files
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Find Terraform directory
+        id: find_tf
+        shell: bash
+        run: |
+          set -e
+          echo "Looking for *.tf files (maxdepth 3)..."
+          DIRS=$(find . -maxdepth 3 -type f -name "*.tf" -printf '%h\n' | sort -u)
+          echo "$DIRS"
+          if [ -z "$DIRS" ]; then
+            echo "No .tf files found. Are they committed?"
+            exit 1
+          fi
+          TF_DIR=$(echo "$DIRS" | head -n1)
+          echo "Using TF_DIR=$TF_DIR"
+          echo "TF_DIR=$TF_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Debug: list TF dir
+        run: |
+          cd "${{ steps.find_tf.outputs.TF_DIR }}"
+          pwd
+          ls -la
+          echo "TF files here:"
+          ls -1 *.tf
+          
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -34,9 +55,11 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
+        working-directory: ${{ steps.find_tf.outputs.TF_DIR }}
         run: terraform init -input=false
         # If you use an S3 backend file:
         # run: terraform init -input=false -backend-config=backend-prod.hcl
 
-      - name: Terraform Destroy (no plan step)
+      - name: Terraform Destroy
+        working-directory: ${{ steps.find_tf.outputs.TF_DIR }}
         run: terraform destroy -auto-approve -input=false -no-color
