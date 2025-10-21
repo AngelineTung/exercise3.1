@@ -1,4 +1,4 @@
-name: Terraform Destroy (manual)
+name: Terraform Destroy (manual, no plan)
 
 on:
   workflow_dispatch:
@@ -15,10 +15,9 @@ jobs:
   destroy:
     if: ${{ github.event.inputs.confirm == 'DESTROY' }}
     runs-on: ubuntu-latest
-    # Change this to the folder that contains your .tf files:
     defaults:
       run:
-        working-directory: infra
+        working-directory: infra   # <- set to the folder with .tf files
 
     steps:
       - name: Checkout
@@ -36,11 +35,8 @@ jobs:
 
       - name: Terraform Init
         run: terraform init -input=false
-        # If you use an S3 backend .hcl file, do:
+        # If you use an S3 backend file:
         # run: terraform init -input=false -backend-config=backend-prod.hcl
 
-      - name: Terraform Plan (destroy)
-        run: terraform plan -destroy -out=destroy.tfplan -input=false -no-color
-
-      - name: Terraform Apply (destroy)
-        run: terraform apply -auto-approve destroy.tfplan
+      - name: Terraform Destroy (no plan step)
+        run: terraform destroy -auto-approve -input=false -no-color
