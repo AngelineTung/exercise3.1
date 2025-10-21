@@ -1,35 +1,46 @@
-name: Terraform Deployment
+name: Terraform Destroy (manual)
 
 on:
-  push:
-    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type EXACTLY: DESTROY'
+        required: true
+        type: string
 
-env:            
-  AWS_REGION: ap-southeast-1  
+env:
+  AWS_REGION: ap-southeast-1
 
 jobs:
-  CICD:
+  destroy:
+    if: ${{ github.event.inputs.confirm == 'DESTROY' }}
     runs-on: ubuntu-latest
+    # Change this to the folder that contains your .tf files:
+    defaults:
+      run:
+        working-directory: infra
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-   
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-   
-    - name: Terraform Init
-      run: terraform init
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Terraform Plan
-      run: terraform plan
-   
-    - name: Terraform Destroy
-      run: terraform destroy --auto-approve
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init -input=false
+        # If you use an S3 backend .hcl file, do:
+        # run: terraform init -input=false -backend-config=backend-prod.hcl
+
+      - name: Terraform Plan (destroy)
+        run: terraform plan -destroy -out=destroy.tfplan -input=false -no-color
+
+      - name: Terraform Apply (destroy)
+        run: terraform apply -auto-approve destroy.tfplan
